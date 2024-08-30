@@ -5,7 +5,7 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, OpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 
 def search_wikipedia(query):
     search_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={query}&format=json"
@@ -45,12 +45,14 @@ def get_wikipedia_content(page_id):
         for section in sections:
             heading = section[0].text.strip()
             text = "\n".join([p.text.strip() for p in section[1:]])
+
+            text = text.replace('$', '\\$').replace('_', '\\_')
             formatted_content += f"**{heading}**\n{text}\n\n"
         
         return formatted_content
     except requests.exceptions.RequestException as e:
         return f"An error occurred while making the request: {e}"
-
+    
 def get_text_chunks(text):
     text_splitter = CharacterTextSplitter(
         separator='\n',
@@ -89,6 +91,10 @@ def main():
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
 
+    if 'conversation_chain' not in st.session_state:
+        st.session_state.conversation_chain = None
+        st.session_state.vectorstore = None
+
     if st.session_state.current_page == 'search':
         st.title("Wikipedia Semantic Search")
 
@@ -113,6 +119,13 @@ def main():
                             st.session_state.current_page = 'chat'
                             st.session_state.current_url = url
                             st.session_state.current_title = title
+                            # Get content and initialize vectorstore and conversation chain
+                            raw_text = get_wikipedia_content(page_id)
+                            text_chunks = get_text_chunks(raw_text)
+                            embeddings = OpenAIEmbeddings()
+                            st.session_state.vectorstore = FAISS.from_texts(text_chunks, embeddings)
+                            st.session_state.conversation_chain = get_conversation_chain(st.session_state.vectorstore)
+                            st.session_state.chat_history = []
                             st.rerun()
 
     elif st.session_state.current_page == 'chat':
@@ -121,7 +134,6 @@ def main():
         user_question = st.chat_input("Ask a question...")
 
         if user_question:
-
             st.session_state.chat_history.append({"role": "user", "content": user_question})
             
             for i, message in enumerate(st.session_state.chat_history):
@@ -131,21 +143,17 @@ def main():
                     st.chat_message("assistant").write(message["content"])
 
             with st.spinner('Generating response...'):
-                raw_text = get_wikipedia_content(st.session_state.current_url.split("=")[-1])
-                text_chunks = get_text_chunks(raw_text)
-                
-                embeddings = OpenAIEmbeddings()
-                vectorstore = FAISS.from_texts(text_chunks, embeddings)
-                
-                conversation_chain = get_conversation_chain(vectorstore)
-                response = conversation_chain.invoke({'question': user_question})
-                st.session_state.chat_history.append({"role": "assistant", "content": response['chat_history'][-1].content})
-            st.chat_message("assistant").write(response['chat_history'][-1].content)
+                if st.session_state.conversation_chain:
+                    response = st.session_state.conversation_chain.invoke({'question': user_question})
+                    st.session_state.chat_history.append({"role": "assistant", "content": response['chat_history'][-1].content})
+                    st.chat_message("assistant").write(response['chat_history'][-1].content)
+                else:
+                    st.write("Conversation chain is not initialized.")
         
         if st.button("Back to Search"):
             st.session_state.current_page = 'search'
             st.session_state.chat_history = []
             st.rerun()
-
+            
 if __name__ == "__main__":
     main()
