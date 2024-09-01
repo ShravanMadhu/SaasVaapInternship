@@ -5,9 +5,9 @@ The app is built using various libraries including requests, BeautifulSoup, lang
 
 **Features of the App**
 
-1.Wikipedia Search: Users can search for Wikipedia articles using a keyword or phrase.
-2.Content Retrieval: The app fetches and formats the content of the selected Wikipedia article.
-3.Q&A Chatbot: Users can ask questions about the content of the article, and the AI will respond contextually based on the content.
+* Wikipedia Search: Users can search for Wikipedia articles using a keyword or phrase.
+* Content Retrieval: The app fetches and formats the content of the selected Wikipedia article.
+* Q&A Chatbot: Users can ask questions about the content of the article, and the AI will respond contextually based on the content.
 
 **Demonstration of the app:**
 
